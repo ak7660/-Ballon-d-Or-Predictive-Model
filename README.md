@@ -1,59 +1,41 @@
-# Ballon d'Or Predictive Model  
+# 🏆 Ballon d’Or Predictive Model
 
-## Overview
+This project analyzes historical player data to **predict Ballon d’Or voting outcomes** using statistical modeling. By collecting and cleaning data on top footballers from **2007 to 2024**, the team built regression models that estimate the **percentage of possible Ballon d’Or votes** a player should receive, based on their season performance.
 
-This project aims to build a predictive model for the Ballon d'Or award winner using historical football statistics and player performance metrics. By leveraging machine learning models and data preprocessing techniques, we explore which factors contribute most strongly to a player's likelihood of winning the award.
+## 📊 Project Overview
 
-## Objectives
+* **Objective:** Identify which player statistics (e.g. goals, assists, trophies) best predict Ballon d’Or results.
+* **Scope:** Covers all Ballon d’Or nominees from 2007–2024.
+* **Data Sources:** Primarily [TransferMarkt](https://www.transfermarkt.com), [FBRef](https://fbref.com), and official Ballon d’Or voting data.
+* **Key Metric:** *Percentage of Possible Votes*, which normalizes vote totals across years.
 
-- Build a robust dataset of Ballon d’Or nominees and key football statistics.
-- Perform exploratory data analysis (EDA) to uncover important features.
-- Train multiple classification models to predict Ballon d’Or outcomes.
-- Evaluate model performance and interpret results.
+## 🔍 Modeling Approaches
 
-## Data Sources
+* **Multiple Linear Regression (MLR):** Position-specific models (Forwards, Midfielders, Defenders, Goalkeepers).
+* **ANCOVA:** A unified model including position as a categorical predictor.
+* **Decision Tree:** Explored for nonlinear relationships (not adopted due to lower accuracy).
 
-- **Ballon d'Or Data:** Historical nominee/winner data from France Football and Kaggle datasets.
-- **Player Stats:** Aggregated seasonal player statistics (goals, assists, minutes played, trophies, etc.) from FBref, Transfermarkt, and official league databases.
+## 📌 Key Insights
 
-## Methodology
+* **Major Awards** are the strongest predictor of vote share across all models.
+* The **MLR model** correctly predicted **13 out of 17** actual Ballon d’Or winners.
+* Models highlighted **undervalued players and seasons**, such as Yoann Gourcuff (2009).
 
-### 1. Data Preparation
-- Merged Ballon d'Or nominee data with seasonal performance data.
-- Engineered features including trophy count, G+A per 90 minutes, league coefficients, and more.
-- Normalized and filtered data to include players nominated between 2010–2022.
+## 📁 Contents
 
-### 2. Exploratory Data Analysis
-- Analyzed distributions and correlations for key variables.
-- Visualized feature importance and trends over time.
+* `Ballon D'or Master 3.csv`: Cleaned dataset of player stats and awards.
+* `analysis.R`: R scripts for MLR, ANCOVA, and Decision Tree modeling.
+* `figures/`: Diagnostic plots and model visualizations.
 
-### 3. Modeling
-- Trained the following models:
-  - Logistic Regression
-  - Random Forest Classifier
-  - Gradient Boosting (XGBoost)
-- Evaluated models using accuracy, precision, recall, F1-score, and AUC-ROC.
+## 📈 Future Work
 
-### 4. Feature Importance
-- Identified most predictive variables: goals scored, trophies won, international tournament wins, and club success.
-- Used SHAP and permutation importance for interpretation.
+* Expand with recent metrics (e.g. expected goals, progressive passes).
+* Build a **real-time prediction system** for current seasons.
+* Explore improvements in vote normalization.
 
-## Results
+---
 
-- **Best model:** Gradient Boosting achieved ~92% accuracy on the test set.
-- Features with highest impact: team trophies, international accolades, and goal contribution metrics.
-- Models struggled when players had similar stats but differed in intangible qualities (e.g., narrative or sentiment).
+> *"Statistics never lie — unless the journalists do."*
 
-## Limitations
-
-- Subjective factors (media bias, sentiment, legacy) not fully captured.
-- Smaller sample size due to limited number of annual awards.
-- Some stats unavailable for earlier years.
-
-## Future Work
-
-- Integrate NLP analysis from media coverage to include sentiment features.
-- Expand dataset to include nominees beyond the top 30.
-- Explore deep learning techniques for ranking rather than binary classification.
-
+---
 
