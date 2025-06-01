@@ -21,11 +21,6 @@ This project analyzes historical player data to **predict Ballon d’Or voting o
 * The **MLR model** correctly predicted **13 out of 17** actual Ballon d’Or winners.
 * Models highlighted **undervalued players and seasons**, such as Yoann Gourcuff (2009).
 
-## 📁 Contents
-
-* `Ballon D'or Master 3.csv`: Cleaned dataset of player stats and awards.
-* `analysis.R`: R scripts for MLR, ANCOVA, and Decision Tree modeling.
-* `figures/`: Diagnostic plots and model visualizations.
 
 ## 📈 Future Work
 
