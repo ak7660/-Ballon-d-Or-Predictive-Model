@@ -1,0 +1,323 @@
+---
+title: "Ballon D’Or Predictive Model Final Report"
+output: html_document
+date: "2025-05-09"
+---
+
+## Introduction
+
+Soccer has been described as The Beautiful Game; it ebbs and flows in a constant motion of improvised creativity. The game consists of two 45-minute halves in which both teams attempt to put the ball in the opposing team's net using their feet. Teams consist of 11 players, one of whom is the goalkeeper who can use their hands to prevent the ball from entering their net, only able to do so inside the penalty box.
+
+There are hundreds of professional leagues worldwide, all with different tournaments and competitions to be won. In soccer, teams are defined by their ability to win trophies. Unlike most sports in the US, soccer teams are not motivated to win just one championship in a given year; they are attempting to win as many tournaments and competitions as they can. Players are not only allowed to play for their clubs, they can also play for their home country's national team in international play.
+
+This game has caught the hearts of billions of fans since its birth in England, growing to become the world's most popular sport. At the pinnacle of the sport is the prestigious FIFA World Cup, which happens every 4 years, in which the top countries in the world compete to crown a champion team.
+
+While soccer is a team sport, individual brilliance defines the sport. A bit of footwork magic can floor a defender and bring the fans into a frenzy. Scoring is extremely infrequent, and the rare sound of the ball nestling into the back of the net is always met with a thunderous roar from the crowd. Pelé. Maradona. Ronaldo. Messi. These players create magic with every touch of the ball.
+
+## The Ballon d'Or Award
+
+The Ballon d'Or is the award given annually to the best soccer player of the year. The award is given based on individual performance, team success, and class/fair play. The Ballon d'Or is by far the most prestigious individual award that a player can receive and stands as a hallmark of excellence in the game.
+
+## Project Objective
+
+In this project, we attempted to find which variables and statistics were most important when it came to predicting a Ballon d'Or winner. We wanted to be able to find a formula which would be able to predict what percentage of votes that a player would get based on their statistics for that season.
+
+## Data Collection and Preparation
+
+We gathered data on the Ballon D'or awards given from 2007-2024 because 2007 was the first year in which players from anywhere in the world could win the award. Prior to 2007 only players in Europe could win the award. We decided to gather goals, assists, appearances, clean Sheets (Keepers), major titles, non major titles, and major awards for each Ballon D'or nominee for each season. We chose these statistics because we believe that these are the metrics that Ballon D'or voters use most when it comes to valuing a player's season. Using, a regression model will allow us to give weights to each variable to be able to see how much Ballon D'or voters value each statistic.
+
+### Defining Key Terms
+
+To clarify, **major titles** are defined in the scope of this project to be winning any of these 5 tournaments as a team:
+*   FIFA World Cup
+*   UEFA Euros
+*   COPA America
+*   UEFA Champions League
+*   Top 5 European League Title (Ligue 1, Premier League, La Liga, Bundesliga, Serie A)
+
+**Major Awards** are defined in the scope of this project as winning the Player of the Tournament award in any of the tournaments above. In cases where the player of the tournament was not awarded (Champions League 2007-2021, La Liga 2007-2008, Bundesliga 2007-2019), we attributed the Player of the Tournament award to the top scorer of that competition.
+
+### Challenges in Data Collection
+
+Data collection was the most challenging portion of this project. This is because there are very few sources of information regarding player statistics for the calendar year, which is the time frame for which the Ballon d'Or is awarded. Most statistics sources are based on the start date of the European season in early August. Since the Ballon d'Or was awarded based on the calendar year from its inception until 2022 (when it was switched to the European season), we had to gather data based on these parameters of January 1st to December 31st for each year from 2007-2021.
+
+In order to do this, we gathered the goals, assists, and appearances data on TransferMarkt.com, which has a Goalscorers of the Year data frame that allowed us to gather the calendar year statistics for all the players in our model for club statistics. We added this data onto each player's country statistics which can be found in their TransferMarkt player profile. Also, in the TransferMarkt.com player profile for every player, there is a page which shows all of the trophies that they have won with their club and country and what year that they won each trophy. Additionally, for goalkeepers, we were forced to go into the game logs on TransferMarkt and determine if the keeper was able to keep a clean sheet for every game that they appeared in for a given year (clean sheets are defined as games in which a keeper allows 0 goals). Finally, in order to attribute major awards to players, we found several sources online which listed the award winners by year for each tournament and competition that we were interested in.
+
+This process was tedious and strenuous; with around 30 nominees per season, it was challenging to gather all of this data for the years 2007-2021. With this done, the final three years of 2022-2024 were much easier, and we were able to use sites such as FBRef.com and additional use of TransferMarkt.com to finish the data collection.
+
+### Dependent Variable: Percentage of Possible Votes
+
+All of these variables were used as independent variables in regression models, and the dependent variable of the model was the percentage of possible Ballon d'Or votes that a player received in a particular year. This was done instead of using total votes or percentage of votes because the number of votes cast has varied from year to year, and the percentage of votes that a player can possibly get has also changed. From 2007-2009, the maximum amount of votes that a player could receive was 1/3 of the votes; from 2010-2016, it was 5/9 of the votes; and from 2017 onwards, it has been 3/8 of the votes. This means that in order to compare across seasons, we need to create a new statistic called "percentage of possible votes" which we shall use as the dependent variable of our regression models. This will allow us to see the value of each independent variable statistic in terms of percentage of possible votes. We create this percentage of possible votes statistic by taking the percentage of votes that the player received and dividing it by 1/3, 5/9, or 3/8 depending on the year to normalize the statistic. This does unfortunately mean that the percentage of possible votes for a singular year will not add up to 100%, and that some seasons will actually have higher totals of percentage of possible votes overall than others. This is not ideal and does put less value overall on the seasons from 2010-2016, but we will have to make this concession and keep in mind that comparing across seasons will be somewhat flawed. However, this mostly preserves the impact of the players who received a lion's share of the votes. The Ballon d'Or vote statistics were found at: [https://www.topendsports.com/sport/soccer/list-player-of-the-year-ballondor.htm].
+
+With this done, we were able to aggregate our data into a shared Google Sheet which we later turned into a CSV. This allowed us to put our data set into R so that we could run regression models onto the data and begin our process of determining which variables are most impactful for garnering Ballon d'Or votes.
+
+```{r, warning=FALSE}
+library(tidyverse)
+library(rpart)
+library(rpart.plot)
+library(car)
+
+bdr <- read.csv("Ballon D'or Master 3.csv")
+names(bdr) <- names(bdr) %>%
+  str_replace_all(" ", "_") %>%
+  str_replace_all("\\.", "_")
+
+
+bdr <- bdr %>% mutate(Position = as.factor(Position))
+```
+
+## Modeling Approaches
+
+With this data, we decided to create different regression models in order to analyze the data in multiple ways and to show that there are a variety of approaches that can be taken when analyzing the data.
+
+### Model 1: Multiple Linear Regression (MLR) by Position
+
+Our first regression model is our multiple linear regression model, which we called our MLR model. This model breaks the data down into 4 different subsets based on the 4 different positions of players: Forwards, Midfielders, Defenders, and Goalkeepers. This is done so that we can see which variables are most significant for each position.
+
+For our MLR model, we initially incorporated all variables for each position but then we reduced each MLR model for each position to only show variables that had a p-value less than 0.1 (as described in the original paper, though the "rough work" models sometimes include more). For this revised version, we will use the specific models from your "rough work".
+
+The following code shows how the data was split into subsets based on the position of the players and also shows the linear regression models that were formulated for each position.
+
+#### Goalkeepers
+
+```{r}
+# Ballon D'or data only consisting of goalkeepers
+bdr_goalkeeper <- filter(bdr, Position == "Goalkeeper")
+
+# linear regression equation for goalkeepers
+model_goalkeeper <- lm(Pct_of_Possible ~ Appearances + Major_Cups + Minor_Cups + Clean_Sheets + Major_Awards, data = bdr_goalkeeper)
+summary(model_goalkeeper)
+```
+
+**Interpretation**
+
+From the above data, we can see that goalkeepers have appearances, clean sheets, major cups, minor cups, and major cups as significant predictors for the percent of possible votes.
+
+You will notice that the most significant predictor is major cups which shows that goalkeepers are especially tied to their team success. 
+
+Also, we notice that clean sheets is a negative predictor. This is very strange because clean sheets are a desirable statistic. This implies that the more clean sheets that a goalkeeper gets, the less likely they are to get high vote totals in the Ballon D'or. Our theory is that teams that win more awards tend to play against better competition and would thus have fewer dominant games and would be less likely to get clean sheets. But at the end of the day this is a strange discovery which is hard to explain away.
+
+```{r}
+# Ballon D'or data only consisting of Defenders
+bdr_defender <- filter(bdr, Position == "Defender")
+
+# linear regression equation for defenders
+model_defender <- lm(Pct_of_Possible ~ Goals + Major_Awards, data = bdr_defender)
+summary(model_defender)
+```
+
+**Interpretation**
+
+From the above data, we can see that only goals and major awards are significant predictors for defenders.
+
+We also see that a singular major award would add 19.08 to the predicted percent of possible votes for a defender. Also we can see that major awards are much more significant and probably the singular best predictor for defenders.
+
+#### Forwards
+
+```{r}
+# Ballon D'or data only consisting of Forwards
+bdr_forward <- filter(bdr, Position == "Forward")
+
+# linear regression equation for forwards
+model_forward <- lm(Pct_of_Possible ~ Goals + Assists + Major_Cups + Major_Awards, data = bdr_forward)
+summary(model_forward)
+```
+
+**Interpretation**
+
+From the data above, we can see that goals, assists, major cups, and major awards are the most significant predictors for forwards.
+
+Also, we can see that a singular major award adds an astounding 14.76 to the percent of possible votes for forwards. This shows the value of major awards.
+
+#### Midfielders
+
+```{r}
+# Ballon D'or data only consisting of Midfielders
+bdr_midfielder <- filter(bdr, Position == "Midfielder")
+
+# linear regression equation for midfielders
+model_midfielder <- lm(Pct_of_Possible ~ Assists + Major_Cups + Major_Awards, data = bdr_midfielder)
+summary(model_midfielder)
+```
+
+**Interpretation**
+
+We notice when looking at the midfielder regression equation above that midfielders have assists, major cups, and, major awards as significant predictors.
+
+Also we can notice that major awards are the most significant predictor and adds a huge 19.65 to the predicted possible percentage of votes per major award.
+
+For the 4 individual MLRs, major awards were the only variable that was in every single positional MLR. This shows that major awards are a great predictor of percentage of possible votes regardless of the position.
+
+#### Combined MLR Predicted Percentage
+
+With these regression models, we apply the formulas to create a combined MLR predicted percentage of possible votes for each player. 
+
+```{r}
+# This creates a combined_MLR_Pct_Votes column in the bdr data frame.
+
+bdr$combined_MLR_Pct_Votes <- NA # Initialize column
+
+for (i in 1:nrow(bdr)) {
+  if (bdr$Position[i] == "Forward") {
+    # Using original paper's coefficients for Forward
+    bdr$combined_MLR_Pct_Votes[i] = bdr$Goals[i] * 0.4969 + bdr$Assists[i] * 0.3055 + bdr$Major_Cups[i] * 6.8650 + bdr$Major_Awards[i] * 14.7653 - 15.8903
+  } else if (bdr$Position[i] == "Midfielder") {
+    # Using original paper's coefficients for Midfielder
+    bdr$combined_MLR_Pct_Votes[i] = bdr$Assists[i] * 0.2233 + bdr$Major_Cups[i] * 4.0724 +  bdr$Major_Awards[i] * 19.6512 - 3.0683
+  } else if (bdr$Position[i] == "Goalkeeper") {
+    # Using original paper's coefficients for Goalkeeper
+    bdr$combined_MLR_Pct_Votes[i] = bdr$Appearances[i] * 0.2598 + bdr$Clean_Sheets[i] * -0.3876 + bdr$Major_Cups[i] * 3.9054 + bdr$Minor_Cups[i] * 2.3495 + bdr$Major_Awards[i] * 12.7653 - 6.1232
+  } else if (bdr$Position[i] == "Defender") {
+    # Using original paper's coefficients for Defender
+    bdr$combined_MLR_Pct_Votes[i] = bdr$Goals[i] * 0.6203 + bdr$Major_Awards[i] * 19.0842 - 0.8475
+  }
+}
+```
+
+### Model 2: ANCOVA Model
+
+We will now create our 2nd regression model which we call our ANCOVA model. This model uses the position of each player as a variable. The ANCOVA model uses categories as variables as well as the independent variables that we used in the previous model, in this case the categories are the positions of the players. This means that the ANCOVA model will create a variable for being a forward, goalkeeper, midfielder, and defender and give a value to each position in terms of percentage of possible Ballon D'or votes. 
+
+For this model, we decided to keep all variables despite possibly high p-values in order to preserve the highest R-squared value as possible. The R-squared generally value shows how much of the variability of the percentage of possible votes from player to player can be explained by the values of the independent variables in the model.
+
+The following code creates the ANCOVA model and applies it to each player to create the ANCOVA predicted percentage of votes possible statistic.
+
+```{r}
+# linear regression equation for all players, using positions as a variable.
+# Defenders are the "average" for positions so the variable of a defender adds 0 to the total equation.
+ancova_model <- lm(Pct_of_Possible ~ Goals + Assists + Appearances + Clean_Sheets + Major_Cups + Minor_Cups + Major_Awards + Position, data = bdr)
+summary(ancova_model)
+```
+
+**Interpretation**
+
+With the above model, we can see that under this model, disregarding postional variables, only major awards, major cups, goals, and assists are significant predictors to a p-value under 0.1.
+
+We can also see that the number of appearances was the least significant predictor, while major awards were most significant predictor.
+
+```{r}
+# This creates an Ancova_Model_Pct_Votes column in the bdr data frame.
+bdr$Ancova_Model_Pct_Votes <- NA # Initialize column
+
+# Extract coefficients from the ancova_model for precision
+ancova_coefs <- coef(ancova_model)
+intercept <- ancova_coefs["(Intercept)"]
+coef_goals <- ancova_coefs["Goals"]
+coef_assists <- ancova_coefs["Assists"]
+coef_appearances <- ancova_coefs["Appearances"]
+coef_clean_sheets <- ancova_coefs["Clean_Sheets"]
+coef_major_cups <- ancova_coefs["Major_Cups"]
+coef_minor_cups <- ancova_coefs["Minor_Cups"]
+coef_major_awards <- ancova_coefs["Major_Awards"]
+coef_pos_forward <- ancova_coefs["PositionForward"]
+coef_pos_goalkeeper <- ancova_coefs["PositionGoalkeeper"]
+coef_pos_midfielder <- ancova_coefs["PositionMidfielder"]
+
+for (i in 1:nrow(bdr)) {
+  base_prediction = intercept +
+                    bdr$Goals[i] * coef_goals +
+                    bdr$Assists[i] * coef_assists +
+                    bdr$Appearances[i] * coef_appearances +
+                    bdr$Clean_Sheets[i] * coef_clean_sheets +
+                    bdr$Major_Cups[i] * coef_major_cups +
+                    bdr$Minor_Cups[i] * coef_minor_cups +
+                    bdr$Major_Awards[i] * coef_major_awards
+  
+  if (bdr$Position[i] == "Forward") {
+    bdr$Ancova_Model_Pct_Votes[i] = base_prediction + coef_pos_forward
+  } else if (bdr$Position[i] == "Midfielder") {
+    bdr$Ancova_Model_Pct_Votes[i] = base_prediction + coef_pos_midfielder
+  } else if (bdr$Position[i] == "Goalkeeper") {
+    bdr$Ancova_Model_Pct_Votes[i] = base_prediction + coef_pos_goalkeeper
+  } else if (bdr$Position[i] == "Defender") { # Defender is the reference category
+    bdr$Ancova_Model_Pct_Votes[i] = base_prediction
+  }
+}
+
+```
+
+### Model 3: Decision Tree Model
+
+To explore and test a non-linear approach and gain insights into how variables interact to predict the percentage of possible votes, a decision tree model was also developed.
+
+```{r}
+# Train Decision Tree
+tree_model <- rpart(Pct_of_Possible ~ Goals + Assists + Appearances + Clean_Sheets + Major_Cups + Minor_Cups + Major_Awards + Position,
+                    data = bdr, method = "anova")
+
+# Plot Tree
+rpart.plot(tree_model, type = 2, extra = 101, under = TRUE, faclen = 0, cex = 0.8, box.palette="GnBu")
+```
+
+**Interpretation**
+
+The decision tree visually represents how different player statistics and positions lead to different predicted outcomes for `Pct_of_Possible`. Each node in the tree shows a split based on a particular variable, guiding down a path to a terminal leaf node which gives a predicted `Pct_of_Possible`. This can help identify key thresholds and combinations of factors that are influential.(We tested the results of this model against our approach with MLR and ANCOVA Models above but since the MLR and ANCOVA Models were better performing we decided not to pursue it further)
+
+## Results and Discussion
+
+Now that we have created both the ANCOVA Model and the combined MLR model, we can use the predicted percentage of possible votes based on each model to compare seasons and to see what our model predicts should have happened for each season.
+
+First, we look at the top 10 seasons according to both the combined MLR model and the ANCOVA model.
+
+```{r}
+# Shows top ten seasons according to combined MLR model
+
+if ("combined_MLR_Pct_Votes" %in% names(bdr)) {
+  print("Top 10 Seasons - Combined MLR Model:")
+  print(head(arrange(bdr, desc(combined_MLR_Pct_Votes)), 10) %>% select(Year, Player, Position, combined_MLR_Pct_Votes))
+}
+
+# Shows top ten seasons according to Ancova model
+
+if ("Ancova_Model_Pct_Votes" %in% names(bdr)) {
+  print("Top 10 Seasons - ANCOVA Model:")
+  print(head(arrange(bdr, desc(Ancova_Model_Pct_Votes)), 10) %>% select(Year, Player, Position, Ancova_Model_Pct_Votes))
+}
+```
+
+**Insights**
+
+Here we see a lot of the same seasons which is encouraging, also, Erling Haaland's 2021 season is the only season featured in either top ten list that was not a Ballon D'or winning campaign. 
+
+Also, both models predict that Lionel Messi's 2015 season would have the highest predicted percentage of votes. This means that our regression models are indicated that the the season in 2015 by Lionel Messi was the most deserving of a Ballon D'or of all time. This does not necessarily mean that this was the greatest season of all time, but it indicates that in 2015 Messi put together a season which fit the criteria for receiving the Ballon D'or votes the very best.
+
+Looking further into the data, we see that the combined MLR model correctly predicted 13 of the 17 Ballon D'or winners from 2007-2024 while the Ancova model correctly predicted 12 of the 17 Ballon D'or winners. This shows that both models were able to correctly predict a large majority of the Ballon D'or winners. Given the complexity around the Ballon D'or, we are pleased with these results.
+
+Additionally, in our shared Google Sheet, we created a top 5 of each year's Ballon D'or results and compared that with the top 5 that each model predicted using the predicted percentage of possible votes statistics. After compiling each year, we found that the combined MLR model correctly predicted 46/85 of the players in the top 5 while the Ancova model correctly predicted 47/85. This shows that both models are quite similar and have similar levels of proficiency at predicting the placements of players in the Ballon D'or rankings. Also this shows that a slight majority of the players in the top 5 for each Ballon D'or year were correctly placed in the top 5 by our models.
+
+Our model highlights forgotten seasons such as Yoann Gourcuff's 2009 season in which he amazingly led Bordeaux, a team now in the 4th tier of French soccer, to a Ligue 1 title, won Ligue 1 player of the year, and had 32 goals + assists. While the Ballon D'or voters in 2009 may have overlooked his heroics, our models did not. Both models placed him 3rd in 2009 instead of a lowly 21st place. This shows that some seasons go overlooked by the journalists who vote on the Ballon D'or and that the name recognizability of the players may be a larger factor than some people think. Since Yoann Gourcuff was never nominated before or since 2009, it can surmised that some journalists may have overlooked him based off of their lack of prior knowledge of the player alone.
+
+One year specifically draws a raised eyebrow, 2018 was a strange year for Ballon D'or voters. According to our models, Luka Modric should have placed 5th when he placed 1st in reality and Lionel Messi should have won the award when he received 5th place in reality. The Ancova model showed that Luka Modric's 2018 season was the 67th best season in our sample in terms of predicted percentage of votes, 26 places lower than the next lowest Ballon D'or winner in our sample (2021 Lionel Messi). Why is this? In short, the FIFA World Cup is a really big deal. Luka Modric led lowly Croatia all the way to the World Cup final before falling to France, winning the player of the tournament along the way. Modric also won the Champions League with Real Madrid, another major title. So is the importance of the World Cup and winning the World Cup Player of the Tournament award enough to offset the strange results in our models? Not exactly. Luka Modric had only 14 goals + assists in 2018, a far cry from the 63 from Cristiano Ronaldo and 80 from Lionel Messi. Also, Cristiano Ronaldo won the Champions League as well with Real Madrid and was even Player of the Tournament. So why didn't the journalists choose Messi or Ronaldo?
+
+It has been theorized by many that Ballon D'or voters as a group began to suffer from voter fatigue after giving the award to either Lionel Messi or Cristiano Ronaldo exclusively from 2008-2017. While many will defend Luka Modric's Ballon D'or winning campaign in 2018, it will probably go down as the most controversial Ballon D'or cycle of all time. The 2018 Ballon D'or cycle, especially with Messi falling as low as 5th when it can be argued that he should have won the award outright, shows that the journalists who vote on the Ballon D'or are humans and they can buy into narratives at times and suffer from biases such as voter fatigue.
+
+## ANCOVA Model Diagnostics
+
+To assess the validity of the ANCOVA model and see if it make sence statistically, we perform some standard diagnostic checks.
+
+```{r}
+par(mfrow = c(2,2))
+plot(ancova_model)
+```
+
+**Interpretation**
+
+The diagnostic plots indicate some departures from the ideal assumptions of linear regression which is something expected considering the nature of voting in Ballon d'Or. Specifically, there is evidence of heteroscedasticity and non-normality of residuals. While no single point appears to be overly influential, these deviations suggest that inferences from the model (like p-values and confidence intervals) should be interpreted with some caution. Transformations of the dependent variable or using robust standard errors could be considered in future work to address these issues and improve the model.
+
+
+```{r}
+# Calculate and print VIF (Generalized Variance Inflation Factor for models with factors)
+print(vif(ancova_model))
+```
+
+**Interpretation**
+
+The VIF values assess multicollinearity, which is the extent to which predictor variables are linearly related to each other. For categorical predictors like `Position`, Generalized VIF (GVIF) is used, and `GVIF^(1/(2*Df))` makes it comparable to VIF values from continuous predictors. A common rule of thumb is that values greater than 5 (or sometimes 10) indicate problematic multicollinearity, while values between 2.5 and 5 might warrant attention.
+
+Overall, multicollinearity does not appear to be a severe issue for most predictors in the ANCOVA model. The variable `Clean_Sheets` shows a moderate level of collinearity that might be the reason for it being negatively correlated to Pct_of_Possible in our model, but it's unlikely to invalidate the overall model. The other variables, including the `Position` factor, exhibit low levels of multicollinearity.
+
+## Future Applications and Work
+
+Going forward, fans could potentially use our models which we created to predict future Ballon D'or award winners and to predict which players are in the lead pack for the Ballon D'or when the season is in progress. For example, if you run our prediction models on the data from the current 2024-25 season and incorporate the chances of either Inter Milan or PSG to win the Champions League, the model shows that Ousmane Dembele is currently in the lead to win next year's Ballon D'or. This can be used by fans if they wanted to bet on the Ballon D'or using sites like Polymarket.
+
+For future work on this subject, we recommend that either more Ballon D'or years should have been used to gather data to better analyze trends, or data should be studied from 2017 onward since the voting system has been the same for the past 8 years and there is more data readily available in recent years. For example, variables such as expected goals, tackles, clearances, completed passes, and big chances creates can be found for more recent seasons but cannot be found for every game in 2007 for example. Also, we would recommend using the game logs on TransferMarkt for accruing statistics as much as possible instead of using the Goalscorers of the Year database. This is because the Goalscorers of the Year database did not always have consistent data for assists and it overestimated some player's assist totals. This overestimation varied from 0 to as much as 10 for 2014 Ronaldo. Also, the percentage of possible votes was not a perfect fix for normalizing our data. It is possible that there is a better solution to normalzing the vote data that we were unable to find.

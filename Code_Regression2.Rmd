@@ -1,0 +1,402 @@
+---
+title: "ballondor2"
+author: "Ahmad Khan"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Load libraries
+library(tidyverse)
+library(broom)
+library(ggplot2)
+library(caret)
+library(glmnet)
+library(rpart)
+library(rpart.plot)
+
+# Read and fix column names
+bdr <- read_csv("Ballon D'or Master 3.csv")
+
+# Replace spaces and dots in column names with underscores
+names(bdr) <- names(bdr) %>%
+  str_replace_all(" ", "_") %>%
+  str_replace_all("\\.", "_")
+
+# Check cleaned names
+glimpse(bdr)
+
+# Make sure Position is a factor
+bdr <- bdr %>% mutate(Position = as.factor(Position)) 
+
+
+```
+
+
+
+```{r}
+# Split by position
+bdr_goalkeeper <- filter(bdr, Position == "Goalkeeper")
+bdr_defender   <- filter(bdr, Position == "Defender")
+bdr_midfielder <- filter(bdr, Position == "Midfielder")
+bdr_forward    <- filter(bdr, Position == "Forward")
+
+# Goalkeeper model
+model_goalkeeper <- lm(Pct_of_Possible ~ Appearances + Major_Cups + Minor_Cups + Clean_Sheets + Major_Awards, data = bdr_goalkeeper)
+
+# Defender model
+model_defender <- lm(Pct_of_Possible ~ Major_Cups + Clean_Sheets + Major_Awards, data = bdr_defender)
+
+# Midfielder model
+model_midfielder <- lm(Pct_of_Possible ~ Assists + Major_Cups + Major_Awards, data = bdr_midfielder)
+
+# Forward model
+model_forward <- lm(Pct_of_Possible ~ Goals + Assists + Major_Cups + Major_Awards, data = bdr_forward)
+
+# Summarize
+summary(model_goalkeeper)
+summary(model_defender)
+summary(model_midfielder)
+summary(model_forward)
+
+
+
+```
+```{r}
+plot(model_goalkeeper)
+```
+
+```
+
+```{r}
+# Prepare data: Select numeric features
+bdr_model_data <- bdr %>%
+  dplyr::select(Pct_of_Possible, Goals, Assists, Appearances, Clean_Sheets, Major_Cups, Minor_Cups, Major_Awards)
+
+# Remove NA rows if any
+bdr_model_data <- na.omit(bdr_model_data)
+
+# Create X and y
+X <- bdr_model_data %>% dplyr::select(-Pct_of_Possible) %>% as.matrix()
+y <- bdr_model_data$Pct_of_Possible
+
+
+# Split into train and test sets
+set.seed(123)
+train_idx <- sample(1:nrow(X), 0.8 * nrow(X))
+X_train <- X[train_idx, ]
+y_train <- y[train_idx]
+X_test  <- X[-train_idx, ]
+y_test  <- y[-train_idx]
+
+# Fit Elastic Net
+cv_model <- cv.glmnet(X_train, y_train, alpha = 0.5)  # alpha = 0.5 => Elastic Net
+
+# Best lambda
+best_lambda <- cv_model$lambda.min
+
+# Final model
+elastic_model <- glmnet(X_train, y_train, alpha = 0.5, lambda = best_lambda)
+
+# Predict on test set
+y_pred <- predict(elastic_model, X_test)
+
+# Evaluate RMSE
+rmse <- sqrt(mean((y_test - y_pred)^2))
+print(paste("Elastic Net Test RMSE:", round(rmse, 2)))
+
+
+```
+
+```{r}
+# Unified model with Position as factor
+ancova_model <- lm(Pct_of_Possible ~ Goals + Assists + Appearances + Clean_Sheets + Major_Cups + Minor_Cups + Major_Awards + Position, data = bdr)
+
+summary(ancova_model)
+
+```
+
+
+
+```{r}
+cor(bdr[, c("Pct_of_Possible", "Goals", "Assists", "Appearances", "Clean_Sheets", "Major_Cups", "Minor_Cups", "Major_Awards")])
+```
+```{r}
+ancova_interaction <- lm(Pct_of_Possible ~ (Goals + Assists + Appearances + Clean_Sheets + Major_Cups + Minor_Cups + Major_Awards) * Position, data = bdr)
+anova(ancova_model, ancova_interaction)
+```
+
+```{r}
+library(car)
+vif(ancova_model)
+```
+
+```{r}
+plot(ancova_model)
+```
+```{r}
+# Load required libraries
+library(ggplot2)
+library(broom)
+
+# Get residuals and fitted values from the model
+model_data <- augment(ancova_model)
+
+# Residuals vs Fitted Plot
+ggplot(model_data, aes(.fitted, .resid)) +
+  geom_point() +
+  geom_smooth(method = "loess", col = "red", se = FALSE) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  labs(title = "Residuals vs Fitted", x = "Fitted Values", y = "Residuals") +
+  theme_bw()
+
+# Q-Q Plot
+ggplot(model_data, aes(sample = .std.resid)) +
+  stat_qq() +
+  stat_qq_line(color = "red") +
+  labs(title = "Q-Q Plot of Residuals", x = "Theoretical Quantiles", y = "Standardized Residuals") +
+  theme_bw()
+```
+
+```{r}
+# Load required libraries
+library(car)
+library(flextable)
+
+# Calculate GVIF
+gvif_raw <- vif(ancova_model)
+
+# Convert `gvif_raw` to a properly structured data frame
+gvif_data <- data.frame(
+  Variable = rownames(gvif_raw),                     # Variable names
+  Scaled_GVIF = gvif_raw[, "GVIF^(1/(2*Df))"],       # Scaled GVIF values
+  row.names = NULL                                   # Remove row names
+)
+
+# Create a flextable for the GVIF table
+gvif_table <- flextable(gvif_data) %>%
+  set_caption("Generalized Variance Inflation Factor (GVIF)") %>%
+  colformat_double(j = "Scaled_GVIF", digits = 4) %>%
+  italic(j = 1, part = "header") %>%
+  autofit()
+
+# Print the table
+print(gvif_table)
+```
+
+```{r}
+# Load required libraries
+library(car)
+library(ggplot2)
+
+# Calculate GVIF
+gvif_raw <- vif(ancova_model)
+
+# Convert `gvif_raw` to a data frame
+gvif_data <- data.frame(
+  Variable = rownames(gvif_raw),                     # Variable names
+  Scaled_GVIF = gvif_raw[, "GVIF^(1/(2*Df))"]        # Scaled GVIF values
+)
+
+# Plot the Scaled GVIF values
+ggplot(gvif_data, aes(x = reorder(Variable, Scaled_GVIF), y = Scaled_GVIF, fill = Scaled_GVIF)) +
+  geom_bar(stat = "identity", color = "black") +
+  geom_hline(yintercept = 2, linetype = "dashed", color = "red", size = 0.8) +
+  labs(
+    title = "Scaled GVIF Values for Model Variables",
+    x = "Variable",
+    y = "Scaled GVIF",
+  ) +
+  scale_fill_gradient(low = "lightblue", high = "steelblue") +
+  coord_flip() +  # Flip coordinates for better readability
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 13),
+    legend.position = "none"
+  )
+```
+
+```{r}
+# Perform ANOVA comparison
+anova_table <- anova(ancova_model, ancova_interaction)
+
+# Convert ANOVA output to a data frame
+anova_df <- as.data.frame(anova_table) %>%
+  mutate(
+    `Model` = c("Full Model", "Model+Interaction"),
+    `P-value` = ifelse(`Pr(>F)` < 2e-16, "< 2e-16", format(`Pr(>F)`, scientific = TRUE, digits = 2))
+  ) %>%
+  select(Model, Res.Df, RSS, Df, `Sum of Sq`, F, `P-value`)  # Reorder columns
+
+# Create the flextable
+anova_table_flex <- flextable(anova_df) %>%
+  set_caption("ANOVA Table: Testing Significance of Interaction Terms") %>%
+  colformat_double(j = c("RSS", "Sum of Sq", "F"), digits = 4) %>%
+  italic(j = 1, part = "header") %>%
+  autofit()
+
+# Print the table
+print(anova_table_flex)
+```
+
+```{r}
+# Train Decision Tree
+tree_model <- rpart(Pct_of_Possible ~ Goals + Assists + Appearances + Clean_Sheets + Major_Cups + Minor_Cups + Major_Awards + Position,
+                    data = bdr, method = "anova")
+
+# Plot Tree
+rpart.plot(tree_model, type = 2, extra = 101, under = TRUE, faclen = 0, cex = 0.8)
+
+```
+```{r}
+# Diagnostics for ANCOVA model
+par(mfrow = c(2,2))
+plot(ancova_model)
+
+# Variable Importance (Elastic Net)
+coef_elastic <- as.vector(coef(elastic_model))
+names(coef_elastic) <- c("(Intercept)", colnames(X_train))
+coef_elastic_df <- data.frame(Feature = names(coef_elastic), Coefficient = coef_elastic)
+
+coef_elastic_df %>%
+  filter(Feature != "(Intercept)") %>%
+  ggplot(aes(x = reorder(Feature, Coefficient), y = Coefficient)) +
+  geom_col() +
+  coord_flip() +
+  labs(title = "Elastic Net Feature Importance", x = "", y = "Coefficient")
+
+```
+
+```{r}
+# Start
+bdr_preds <- bdr
+
+# --- Predict Position models separately ---
+bdr_preds <- bdr_preds %>%
+  mutate(
+    Pred_GK  = if_else(Position == "Goalkeeper", predict(model_goalkeeper, newdata = bdr_preds), NA_real_),
+    Pred_DF  = if_else(Position == "Defender", predict(model_defender, newdata = bdr_preds), NA_real_),
+    Pred_MF  = if_else(Position == "Midfielder", predict(model_midfielder, newdata = bdr_preds), NA_real_),
+    Pred_FW  = if_else(Position == "Forward", predict(model_forward, newdata = bdr_preds), NA_real_)
+  ) %>%
+  mutate(
+    Pred_Position_Model = coalesce(Pred_GK, Pred_DF, Pred_MF, Pred_FW)
+  )
+
+# --- Predict ANCOVA model ---
+bdr_preds$Pred_ANCOVA <- predict(ancova_model, newdata = bdr_preds)
+
+# --- Predict Elastic Net model ---
+X_full <- bdr %>%
+  dplyr::select(Goals, Assists, Appearances, Clean_Sheets, Major_Cups, Minor_Cups, Major_Awards) %>%
+  as.matrix()
+
+bdr_preds$Pred_ENET <- as.numeric(predict(elastic_model, newx = X_full, s = best_lambda))  # <-- force to numeric
+
+```
+
+```{r}
+# Select only important columns and save
+bdr_preds %>%
+  dplyr::select(
+    Year, Player, Position, Place, Points, Pct_of_Possible,
+    Pred_Position_Model, Pred_ANCOVA, Pred_ENET
+  ) %>%
+  write_csv("bdr_predictions.csv")
+
+
+```
+
+```{r}
+library(flextable)
+library(broom)
+library(dplyr)
+
+print_model_summary <- function(model, model_name = "Model", newdata = NULL, interval_type = c("confidence", "prediction")) {
+  # 1. Coefficient Table
+  model_summary <- tidy(model)
+  
+  coef_table <- flextable(model_summary) %>%
+    set_caption(paste("Coefficient Estimates:", model_name)) %>%
+    colformat_double(j = c("estimate", "std.error", "statistic"), digits = 4) %>%
+    italic(j = 1, part = "header") %>%
+    compose(
+      j = "p.value",
+      value = as_paragraph(
+        ifelse(model_summary$p.value < 2e-16,
+               "< 2e-16",
+               format(model_summary$p.value, scientific = TRUE, digits = 2))
+      )
+    ) %>%
+    autofit()
+  
+  print(coef_table)
+  
+  # 2. Model Performance Statistics Table
+  model_glance <- glance(model)
+  
+  perf_df <- data.frame(
+    `R-squared` = round(model_glance$r.squared, 4),
+    `Adj. R-squared` = round(model_glance$adj.r.squared, 4),
+    `Residual Std. Error` = round(model_glance$sigma, 4),
+    `F-statistic` = round(model_glance$statistic, 4),
+    `F-stat p-value` = ifelse(model_glance$p.value < 2e-16, "< 2e-16",
+                              format(model_glance$p.value, scientific = TRUE, digits = 2)),
+    `DF` = paste0(model_glance$df[1], " & ", model_glance$df[2])
+  )
+  
+  perf_table <- flextable(perf_df) %>%
+    set_caption(paste("Model Fit Statistics:", model_name)) %>%
+    autofit()
+  
+  print(perf_table)
+
+  # 3. Optional: Confidence or Prediction Intervals
+  if (!is.null(newdata)) {
+    for (type in interval_type) {
+      pred <- predict(model, newdata = newdata, interval = type)
+      pred_df <- as.data.frame(pred)
+      
+      pred_table <- flextable(pred_df) %>%
+        set_caption(paste0(toupper(substring(type, 1, 1)), substring(type, 2), 
+                           " Interval for ", model_name)) %>%
+        colformat_double(digits = 4) %>%
+        autofit()
+      
+      print(pred_table)
+    }
+  }
+}
+
+
+```
+
+
+```{r}
+# For full model
+print_model_summary(ancova_model, model_name = "ANCOVA Model")
+
+# For goalkeeper model
+print_model_summary(model_goalkeeper, model_name = "Goalkeeper Full Model")
+
+print_model_summary(model_midfielder, model_name = "Midfielder Reduced Model")
+
+# If you want to add predictions for a new county (or new observation)
+new_data <- data.frame(
+  mean_age = 45,
+  prop_male = 0.48,
+  prop_educ_4yr = 0.25,
+  prop_white = 0.70,
+  mean_ftotinc = 50000
+)
+print_model_summary(ancova_model, model_name = "Full Model", newdata = new_data, interval_type = c("confidence", "prediction"))
+
+```
+
+

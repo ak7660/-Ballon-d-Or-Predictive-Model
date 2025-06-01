@@ -1,0 +1,45 @@
+---
+title: "Data Sources List"
+output: html_document
+date: "2025-03-19"
+---
+
+
+
+https://fbref.com/en/
+
+https://www.topendsports.com/sport/soccer/list-player-of-the-year-ballondor.htm
+
+transfermarkt.com
+Has list of achievements by year
+
+https://en.wikipedia.org/wiki/Premier_League_Player_of_the_Season
+prem player of the season
+
+https://en.wikipedia.org/wiki/La_Liga_Awards
+La liga player of the season, 2007 Ruud Van Nistel Roy, 2008 dani guiza (missing 2000-2008)
+
+https://en.wikipedia.org/wiki/Serie_A_Footballer_of_the_Year
+Serie A player of the season
+
+https://en.wikipedia.org/wiki/Ligue_1_Player_of_the_Year
+Ligue 1 player of the season
+
+https://en.wikipedia.org/wiki/List_of_Bundesliga_top_scorers_by_season
+https://en.wikipedia.org/wiki/Bundesliga_Awards
+Bundesliga, use top scorer if player of the season not applicable
+
+https://en.wikipedia.org/wiki/UEFA_Club_Football_Awards
+https://en.wikipedia.org/wiki/List_of_UEFA_Champions_League_top_scorers
+Champions League, use top scorer if player of the season not applicable
+
+https://en.wikipedia.org/wiki/FIFA_World_Cup_awards
+World Cup Golden Ball
+
+https://en.wikipedia.org/wiki/Copa_Am%C3%A9rica_awards
+Copa America Player of the Tournament
+
+https://en.wikipedia.org/wiki/UEFA_European_Championship_awards
+Euros Player of the Tournament
+
+
